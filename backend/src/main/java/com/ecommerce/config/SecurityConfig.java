@@ -63,51 +63,70 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
+            // ✅ Enable CORS
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+            // ✅ Disable CSRF for REST APIs
             .csrf(csrf -> csrf.disable())
 
+            // ✅ Stateless session (JWT)
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+            // ✅ Public + protected routes
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/oauth2/**").permitAll()
-                .requestMatchers("/login/oauth2/**").permitAll()
+                .requestMatchers(
+                        "/api/auth/**",
+                        "/oauth2/**",
+                        "/login/oauth2/**"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
 
-            // 🔥 IMPORTANT: return 401 instead of redirect
+            // ✅ Return 401 instead of redirect
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
 
-            // 🔥 disable default login
+            // ❌ Disable default login forms
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
 
-            // OAuth only when user clicks button
+            // ✅ OAuth2 login
             .oauth2Login(oauth -> oauth
                 .successHandler(oAuth2AuthenticationSuccessHandler)
             )
 
+            // ✅ Authentication provider
             .authenticationProvider(authenticationProvider())
 
+            // ✅ JWT filter
             .addFilterBefore(authenticationJwtTokenFilter(),
                 UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
+    // ✅ CORS Configuration (IMPORTANT FOR FRONTEND)
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+
+        // 🔥 For development + production
+        configuration.setAllowedOriginPatterns(List.of("*"));
+
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS"
+        ));
+
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 }

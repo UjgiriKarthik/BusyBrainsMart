@@ -18,16 +18,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 
-/**
- * REST controller for authentication operations.
- *
- * Endpoints:
- * POST /api/auth/login    - Local username/password login → JWT
- * POST /api/auth/register - New user registration
- */
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:3000")
 public class AuthController {
 
     @Autowired
@@ -42,30 +34,9 @@ public class AuthController {
     @Autowired
     private JwtUtils jwtUtils;
 
-    /**
-     * Authenticate a user with username and password.
-     * Returns a JWT token on success.
-     */
     @PostMapping("/login")
-        public ResponseEntity<?> authenticateUser(@Valid @RequestBody AuthDto.LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody AuthDto.LoginRequest loginRequest) {
 
-        System.out.println("INPUT username: " + loginRequest.getUsername());
-        System.out.println("INPUT password: " + loginRequest.getPassword());
-
-        // 🔥 DEBUG BEFORE AUTHENTICATION
-        User user = userRepository.findByUsername(loginRequest.getUsername()).orElse(null);
-
-        if (user != null) {
-                boolean match = passwordEncoder.matches(
-                        loginRequest.getPassword(),
-                        user.getPassword()
-                );
-                System.out.println("PASSWORD MATCH: " + match);
-        } else {
-                System.out.println("USER NOT FOUND");
-        }
-
-        // 🔥 AUTHENTICATION
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginRequest.getUsername(),
@@ -83,49 +54,43 @@ public class AuthController {
                 .findFirst()
                 .orElse("ROLE_USER");
 
-        User fullUser = userRepository.findByUsername(loginRequest.getUsername())
+        User user = userRepository.findByUsername(loginRequest.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         return ResponseEntity.ok(AuthDto.JwtResponse.builder()
                 .token(jwt)
                 .type("Bearer")
-                .id(fullUser.getId())
-                .username(fullUser.getUsername())
-                .email(fullUser.getEmail())
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
                 .role(role)
-                .fullName(fullUser.getFullName())
-                .avatarUrl(fullUser.getAvatarUrl())
+                .fullName(user.getFullName())
+                .avatarUrl(user.getAvatarUrl())
                 .build());
-        }
+    }
 
-    /**
-     * Register a new user account.
-     * Default role is ROLE_USER unless overridden (admin can assign roles via profile management).
-     */
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody AuthDto.RegisterRequest signUpRequest) {
-        // Check for duplicate username
+
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             return ResponseEntity.badRequest()
                     .body(AuthDto.MessageResponse.builder()
-                            .message("Error: Username is already taken!")
+                            .message("Username already taken")
                             .build());
         }
 
-        // Check for duplicate email
         if (userRepository.existsByEmail(signUpRequest.getEmail())) {
             return ResponseEntity.badRequest()
                     .body(AuthDto.MessageResponse.builder()
-                            .message("Error: Email is already in use!")
+                            .message("Email already in use")
                             .build());
         }
 
-        // Create new user with hashed password
         User user = User.builder()
                 .username(signUpRequest.getUsername())
                 .email(signUpRequest.getEmail())
                 .password(passwordEncoder.encode(signUpRequest.getPassword()))
-                .role("ROLE_USER")  // Default role for self-registration
+                .role("ROLE_USER")
                 .fullName(signUpRequest.getFullName())
                 .enabled(true)
                 .createdAt(LocalDateTime.now())
@@ -135,7 +100,7 @@ public class AuthController {
         userRepository.save(user);
 
         return ResponseEntity.ok(AuthDto.MessageResponse.builder()
-                .message("User registered successfully! You can now log in.")
+                .message("User registered successfully")
                 .build());
     }
 }

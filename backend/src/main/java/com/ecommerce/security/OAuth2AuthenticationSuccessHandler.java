@@ -5,6 +5,7 @@ import com.ecommerce.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -14,12 +15,6 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-/**
- * Handles successful OAuth2 logins (Google SSO).
- *
- * Flow:
- * Google → Backend → Create/Fetch User → Generate JWT → Redirect to frontend
- */
 @Component
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
@@ -29,6 +24,10 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     @Autowired
     private UserRepository userRepository;
 
+    // 🔥 ADD THIS (IMPORTANT)
+    @Value("${app.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
                                         HttpServletResponse response,
@@ -36,7 +35,6 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
 
-        // 🔥 Extract safely (avoid null crash)
         String email = oAuth2User.getAttribute("email");
         String name = oAuth2User.getAttribute("name");
         String googleId = oAuth2User.getAttribute("sub");
@@ -46,14 +44,12 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             throw new RuntimeException("Google account email not found");
         }
 
-        // ✅ Find or create user
         User user = findOrCreateOAuthUser(email, name, googleId, avatarUrl);
 
-        // ✅ Generate JWT
         String token = jwtUtils.generateTokenFromUsername(user.getUsername());
 
-        // ✅ Redirect to frontend
-        String redirectUrl = "http://localhost:3000/oauth2/callback"
+        // 🔥 USE DYNAMIC URL (FIXED)
+        String redirectUrl = frontendUrl + "/oauth2/callback"
                 + "?token=" + token
                 + "&username=" + user.getUsername()
                 + "&role=" + user.getRole();
@@ -61,12 +57,8 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 
-    /**
-     * Find or create OAuth user
-     */
     private User findOrCreateOAuthUser(String email, String name, String googleId, String avatarUrl) {
 
-        // 🔹 1. Check by provider + providerId
         Optional<User> existingUser =
                 userRepository.findByProviderAndProviderId("google", googleId);
 
@@ -74,7 +66,6 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             return existingUser.get();
         }
 
-        // 🔹 2. Check by email (user registered manually before)
         Optional<User> emailUser = userRepository.findByEmail(email);
 
         if (emailUser.isPresent()) {
@@ -90,7 +81,6 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             return userRepository.save(user);
         }
 
-        // 🔹 3. Create new user (Google login)
         String username = generateUniqueUsername(email);
 
         User newUser = User.builder()
@@ -101,7 +91,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 .provider("google")
                 .providerId(googleId)
                 .avatarUrl(avatarUrl)
-                .password("OAUTH_USER") // 🔥 VERY IMPORTANT FIX
+                .password("OAUTH_USER") // ✅ correct
                 .enabled(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -110,9 +100,6 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         return userRepository.save(newUser);
     }
 
-    /**
-     * Generate unique username
-     */
     private String generateUniqueUsername(String email) {
         String base = email.split("@")[0].replaceAll("[^a-zA-Z0-9_]", "_");
 
