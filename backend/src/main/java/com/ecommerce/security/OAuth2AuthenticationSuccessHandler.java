@@ -25,7 +25,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     private UserRepository userRepository;
 
     // 🔥 ADD THIS (IMPORTANT)
-    @Value("${app.frontend.url:http://localhost:3000}")
+    @Value("${app.frontend.url:https://busy-brains-mart-ibx5.vercel.app}")
     private String frontendUrl;
 
     @Override

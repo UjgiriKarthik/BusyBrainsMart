@@ -75,7 +75,6 @@ public class SecurityConfig {
 
             // ✅ Public + protected routes
             .authorizeHttpRequests(auth -> auth
-                
                 .requestMatchers(
                         "/api/auth/**",
                         "/oauth2/**",
@@ -114,7 +113,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // 🔥 For development + production
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOriginPatterns(List.of("https://busybrainsmart-1.onrender.com/"));
 
         configuration.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS"
