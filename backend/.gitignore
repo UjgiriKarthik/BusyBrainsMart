@@ -1,0 +1,13 @@
+target/
+*.class
+*.jar
+*.war
+.mvn/
+!.mvn/wrapper/
+.idea/
+*.iml
+*.iws
+# CRITICAL: Never commit secrets to git
+application.properties
+application-prod.properties
+*.env
