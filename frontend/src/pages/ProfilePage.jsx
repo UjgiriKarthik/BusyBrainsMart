@@ -17,7 +17,7 @@ import Navbar from '../components/Navbar';
 const TABS = ['Profile Info', 'Security', 'Account'];
 
 export default function ProfilePage() {
-  const { user, isAdmin, login } = useAuth();
+  const { isAdmin, login } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('Profile Info');

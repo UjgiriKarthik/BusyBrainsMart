@@ -30,7 +30,7 @@ export default function OAuth2Callback() {
       toast.error('Google login failed. Please try again.');
       navigate('/login', { replace: true });
     }
-  }, []);
+  }, [login, navigate, searchParams]); // ✅ FIXED
 
   return (
     <div className="loading-screen">
