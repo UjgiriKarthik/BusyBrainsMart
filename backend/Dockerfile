@@ -6,4 +6,5 @@ COPY . .
 
 RUN mvn clean package -DskipTests
 
-CMD ["java", "-jar", "target/*.jar"]
+
+CMD ["java", "-jar", "target/ecommerce-backend-1.0.0.jar"]
