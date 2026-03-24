@@ -75,7 +75,7 @@ public class SecurityConfig {
 
             // ✅ Public + protected routes
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/").permitAll()
+                
                 .requestMatchers(
                         "/api/auth/**",
                         "/oauth2/**",
