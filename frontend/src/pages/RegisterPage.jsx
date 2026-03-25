@@ -1,14 +1,25 @@
-/**
- * RegisterPage.jsx - New user registration form.
- *
- * Validates inputs client-side before sending to Spring Boot backend.
- * On success, redirects to login with a success toast.
- */
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authAPI } from '../services/api';
+
+// ✅ Field is defined OUTSIDE RegisterPage so it never gets recreated on re-render
+// When defined inside, React treats it as a new component every keystroke → input loses focus
+const Field = ({ name, label, type = 'text', placeholder, value, onChange, error, autoComplete }) => (
+  <div className="form-group">
+    <label className="form-label">{label}</label>
+    <input
+      className="form-input"
+      type={type}
+      name={name}
+      placeholder={placeholder}
+      value={value}
+      onChange={onChange}
+      autoComplete={autoComplete || name}
+    />
+    {error && <p className="text-error">{error}</p>}
+  </div>
+);
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -23,8 +34,9 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    setErrors({ ...errors, [e.target.name]: '' });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
   const validate = () => {
@@ -61,22 +73,6 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
-
-  const Field = ({ name, label, type = 'text', placeholder }) => (
-    <div className="form-group">
-      <label className="form-label">{label}</label>
-      <input
-        className="form-input"
-        type={type}
-        name={name}
-        placeholder={placeholder}
-        value={formData[name]}
-        onChange={handleChange}
-        autoComplete={name}
-      />
-      {errors[name] && <p className="text-error">{errors[name]}</p>}
-    </div>
-  );
 
   return (
     <div className="auth-layout">
@@ -118,14 +114,62 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            <Field name="fullName" label="Full Name" placeholder="John Doe" />
-            <Field name="username" label="Username" placeholder="johndoe" autoComplete="username" />
-            <Field name="email" label="Email Address" type="email" placeholder="john@example.com" />
-            <Field name="password" label="Password" type="password" placeholder="Min. 6 characters" />
-            <Field name="confirmPassword" label="Confirm Password" type="password" placeholder="Repeat password" />
+          <form onSubmit={handleSubmit} noValidate>
+            <Field
+              name="fullName"
+              label="Full Name"
+              placeholder="John Doe"
+              value={formData.fullName}
+              onChange={handleChange}
+              error={errors.fullName}
+              autoComplete="name"
+            />
+            <Field
+              name="username"
+              label="Username"
+              placeholder="johndoe"
+              value={formData.username}
+              onChange={handleChange}
+              error={errors.username}
+              autoComplete="username"
+            />
+            <Field
+              name="email"
+              label="Email Address"
+              type="email"
+              placeholder="john@example.com"
+              value={formData.email}
+              onChange={handleChange}
+              error={errors.email}
+              autoComplete="email"
+            />
+            <Field
+              name="password"
+              label="Password"
+              type="password"
+              placeholder="Min. 6 characters"
+              value={formData.password}
+              onChange={handleChange}
+              error={errors.password}
+              autoComplete="new-password"
+            />
+            <Field
+              name="confirmPassword"
+              label="Confirm Password"
+              type="password"
+              placeholder="Repeat password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              error={errors.confirmPassword}
+              autoComplete="new-password"
+            />
 
-            <button className="btn btn-primary" type="submit" disabled={loading} style={{ marginTop: 8 }}>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={loading}
+              style={{ marginTop: 8 }}
+            >
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
@@ -139,7 +183,9 @@ export default function RegisterPage() {
           <button
             className="btn btn-google"
             type="button"
-            onClick={() => { window.location.href = `${process.env.REACT_APP_API_URL}/oauth2/authorization/google`; }}
+            onClick={() => {
+              window.location.href = `${process.env.REACT_APP_API_URL}/oauth2/authorization/google`;
+            }}
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
