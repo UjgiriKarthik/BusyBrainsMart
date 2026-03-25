@@ -1,15 +1,3 @@
-/**
- * DashboardPage.jsx - Main product listing page.
- *
- * Features:
- * - Hero banner with stats
- * - Search bar (real-time filter)
- * - Category filter chips
- * - Product grid with cards
- * - Admin: Add / Edit / Delete product buttons
- * - Role info banner (admin vs user experience)
- */
-
 import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { productAPI } from '../services/api';
@@ -26,12 +14,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-
-  // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // Load all products and categories on mount
   useEffect(() => {
     loadProducts();
     loadCategories();
@@ -41,9 +26,19 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       const { data } = await productAPI.getAll();
-      setProducts(data);
-    } catch {
-      toast.error('Failed to load products');
+      console.log('Products loaded:', data?.length);
+      setProducts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load products:', err);
+      // Show specific error message
+      if (err.response?.status === 401) {
+        toast.error('Session expired. Please log in again.');
+      } else if (err.code === 'ERR_NETWORK' || err.code === 'ERR_FAILED') {
+        toast.error('Cannot reach server. Check if backend is running.');
+      } else {
+        toast.error('Failed to load products. Please refresh.');
+      }
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -52,13 +47,12 @@ export default function DashboardPage() {
   const loadCategories = async () => {
     try {
       const { data } = await productAPI.getCategories();
-      setCategories(['All', ...data]);
+      setCategories(['All', ...(Array.isArray(data) ? data : [])]);
     } catch {
       setCategories(['All']);
     }
   };
 
-  // Client-side filtering: search + category
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchesSearch =
@@ -66,36 +60,27 @@ export default function DashboardPage() {
         p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.description?.toLowerCase().includes(searchTerm.toLowerCase());
-
       const matchesCategory =
         selectedCategory === 'All' || p.category === selectedCategory;
-
       return matchesSearch && matchesCategory;
     });
   }, [products, searchTerm, selectedCategory]);
 
-  const handleAddProduct = () => {
-    setEditingProduct(null);
-    setShowModal(true);
-  };
-
-  const handleEditProduct = (product) => {
-    setEditingProduct(product);
-    setShowModal(true);
-  };
+  const handleAddProduct = () => { setEditingProduct(null); setShowModal(true); };
+  const handleEditProduct = (product) => { setEditingProduct(product); setShowModal(true); };
 
   const handleDeleteProduct = async (id) => {
     try {
       await productAPI.delete(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
       toast.success('Product deleted');
-    } catch {
-      toast.error('Delete failed — check your permissions');
+    } catch (err) {
+      if (err.response?.status === 403) {
+        toast.error('Access denied. Admin role required.');
+      } else {
+        toast.error('Delete failed.');
+      }
     }
-  };
-
-  const handleModalSaved = () => {
-    loadProducts();
   };
 
   const totalValue = products.reduce((sum, p) => sum + (p.price || 0), 0);
@@ -125,7 +110,9 @@ export default function DashboardPage() {
             <div className="hero-stat-label">Categories</div>
           </div>
           <div className="hero-stat">
-            <div className="hero-stat-number">${Math.round(totalValue / 100) * 100 / 1000}K+</div>
+            <div className="hero-stat-number">
+              ${(Math.round(totalValue / 100) * 100 / 1000).toFixed(1)}K+
+            </div>
             <div className="hero-stat-label">Total Value</div>
           </div>
         </div>
@@ -140,7 +127,7 @@ export default function DashboardPage() {
           color: isAdmin() ? 'var(--accent-red)' : 'var(--accent-green)',
         }}>
           {isAdmin() ? '👑' : '👤'} Logged in as{' '}
-          <strong>{user?.username}</strong> —{' '}
+          <strong>{user?.username}</strong>{' — '}
           {isAdmin() ? 'You can add, edit & delete products' : 'View-only access'}
         </div>
       </div>
@@ -174,10 +161,7 @@ export default function DashboardPage() {
 
         {searchTerm && (
           <div className="controls-right">
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => setSearchTerm('')}
-            >
+            <button className="btn btn-ghost btn-sm" onClick={() => setSearchTerm('')}>
               Clear
             </button>
           </div>
@@ -196,24 +180,54 @@ export default function DashboardPage() {
               {searchTerm && ` for "${searchTerm}"`}
             </span>
           </div>
+          {/* Refresh button */}
+          <button
+            className="btn-icon"
+            onClick={loadProducts}
+            title="Refresh products"
+            style={{ opacity: loading ? 0.5 : 1 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }}>
+              <path d="M23 4v6h-6M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+          </button>
         </div>
 
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '80px 0', gap: 16 }}>
             <div className="loading-spinner" />
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading products...</p>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state-icon">🔍</div>
-            <div className="empty-state-title">No products found</div>
-            <div className="empty-state-text">
-              {searchTerm
-                ? `No results for "${searchTerm}". Try a different search.`
-                : 'No products in this category yet.'}
+            <div className="empty-state-icon">
+              {products.length === 0 ? '📦' : '🔍'}
             </div>
-            {isAdmin() && (
-              <button className="btn btn-primary" onClick={handleAddProduct}
-                style={{ width: 'auto', marginTop: 20 }}>
+            <div className="empty-state-title">
+              {products.length === 0 ? 'No products yet' : 'No products found'}
+            </div>
+            <div className="empty-state-text">
+              {products.length === 0
+                ? 'The product catalog is empty.'
+                : `No results for "${searchTerm}". Try a different search.`}
+            </div>
+            {products.length === 0 && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={loadProducts}
+                style={{ width: 'auto', marginTop: 16 }}
+              >
+                Try Again
+              </button>
+            )}
+            {isAdmin() && products.length === 0 && (
+              <button
+                className="btn btn-primary"
+                onClick={handleAddProduct}
+                style={{ width: 'auto', marginTop: 12 }}
+              >
                 Add First Product
               </button>
             )}
@@ -232,12 +246,11 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Admin Product Modal */}
       {showModal && (
         <ProductModal
           product={editingProduct}
           onClose={() => { setShowModal(false); setEditingProduct(null); }}
-          onSaved={handleModalSaved}
+          onSaved={loadProducts}
         />
       )}
     </div>

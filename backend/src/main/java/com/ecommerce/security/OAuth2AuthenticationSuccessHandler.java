@@ -12,9 +12,20 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+/**
+ * Handles successful Google OAuth2 login.
+ *
+ * Flow:
+ * 1. Extract user info from Google's OAuth2 token
+ * 2. Find or create local User record in MongoDB
+ * 3. Generate JWT token
+ * 4. Redirect to React frontend with token + user info as query params
+ */
 @Component
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
@@ -24,8 +35,8 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     @Autowired
     private UserRepository userRepository;
 
-    // 🔥 ADD THIS (IMPORTANT)
-    @Value("${app.frontend.url:https://busy-brains-mart-ibx5.vercel.app}")
+    // Read frontend URL from application.properties (falls back to localhost for dev)
+    @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
     @Override
@@ -35,63 +46,74 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
 
-        String email = oAuth2User.getAttribute("email");
-        String name = oAuth2User.getAttribute("name");
-        String googleId = oAuth2User.getAttribute("sub");
+        String email     = oAuth2User.getAttribute("email");
+        String name      = oAuth2User.getAttribute("name");
+        String googleId  = oAuth2User.getAttribute("sub");
         String avatarUrl = oAuth2User.getAttribute("picture");
 
-        if (email == null) {
-            throw new RuntimeException("Google account email not found");
-        }
-
+        // Find or create the user in MongoDB
         User user = findOrCreateOAuthUser(email, name, googleId, avatarUrl);
 
+        // Generate JWT for this user
         String token = jwtUtils.generateTokenFromUsername(user.getUsername());
 
-        // 🔥 USE DYNAMIC URL (FIXED)
+        // Encode values for safe URL inclusion
+        String encodedUsername = URLEncoder.encode(user.getUsername(), StandardCharsets.UTF_8);
+        String encodedRole     = URLEncoder.encode(user.getRole(), StandardCharsets.UTF_8);
+        String encodedName     = URLEncoder.encode(
+            user.getFullName() != null ? user.getFullName() : user.getUsername(),
+            StandardCharsets.UTF_8
+        );
+        String encodedAvatar   = URLEncoder.encode(
+            user.getAvatarUrl() != null ? user.getAvatarUrl() : "",
+            StandardCharsets.UTF_8
+        );
+        String encodedEmail    = URLEncoder.encode(
+            user.getEmail() != null ? user.getEmail() : "",
+            StandardCharsets.UTF_8
+        );
+
+        // Redirect to React frontend /oauth2/callback with all user info
         String redirectUrl = frontendUrl + "/oauth2/callback"
-                + "?token=" + token
-                + "&username=" + user.getUsername()
-                + "&role=" + user.getRole();
+                + "?token="    + token
+                + "&username=" + encodedUsername
+                + "&role="     + encodedRole
+                + "&fullName=" + encodedName
+                + "&avatarUrl="+ encodedAvatar
+                + "&email="    + encodedEmail;
 
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 
-    private User findOrCreateOAuthUser(String email, String name, String googleId, String avatarUrl) {
-
-        Optional<User> existingUser =
-                userRepository.findByProviderAndProviderId("google", googleId);
-
-        if (existingUser.isPresent()) {
-            return existingUser.get();
+    private User findOrCreateOAuthUser(String email, String name,
+                                       String googleId, String avatarUrl) {
+        // Check by provider + provider ID first
+        Optional<User> existing = userRepository.findByProviderAndProviderId("google", googleId);
+        if (existing.isPresent()) {
+            return existing.get();
         }
 
-        Optional<User> emailUser = userRepository.findByEmail(email);
-
-        if (emailUser.isPresent()) {
-            User user = emailUser.get();
-            user.setProvider("google");
-            user.setProviderId(googleId);
-
-            if (user.getAvatarUrl() == null) {
-                user.setAvatarUrl(avatarUrl);
-            }
-
-            user.setUpdatedAt(LocalDateTime.now());
-            return userRepository.save(user);
+        // Check by email — user may have registered locally with same email
+        Optional<User> byEmail = userRepository.findByEmail(email);
+        if (byEmail.isPresent()) {
+            User u = byEmail.get();
+            u.setProvider("google");
+            u.setProviderId(googleId);
+            if (u.getAvatarUrl() == null) u.setAvatarUrl(avatarUrl);
+            u.setUpdatedAt(LocalDateTime.now());
+            return userRepository.save(u);
         }
 
+        // Brand new OAuth2 user — create with ROLE_USER
         String username = generateUniqueUsername(email);
-
         User newUser = User.builder()
                 .username(username)
                 .email(email)
-                .fullName(name != null ? name : username)
+                .fullName(name)
                 .role("ROLE_USER")
                 .provider("google")
                 .providerId(googleId)
                 .avatarUrl(avatarUrl)
-                .password("OAUTH_USER") // ✅ correct
                 .enabled(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -102,14 +124,11 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
     private String generateUniqueUsername(String email) {
         String base = email.split("@")[0].replaceAll("[^a-zA-Z0-9_]", "_");
-
         String candidate = base;
         int suffix = 1;
-
         while (userRepository.existsByUsername(candidate)) {
             candidate = base + suffix++;
         }
-
         return candidate;
     }
 }
