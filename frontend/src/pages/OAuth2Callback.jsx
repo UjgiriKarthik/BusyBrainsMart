@@ -78,7 +78,7 @@ export default function OAuth2Callback() {
     };
 
     handleCallback();
-  }, []);
+  }, [login, navigate, searchParams]);
 
   return (
     <div className="loading-screen">
