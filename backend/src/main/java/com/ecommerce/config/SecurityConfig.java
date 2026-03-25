@@ -69,12 +69,9 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-            // Return 401 JSON instead of redirecting to OAuth for API calls
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
-
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/oauth2/**").permitAll()
@@ -85,14 +82,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
-
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
-
             .oauth2Login(oauth2 -> oauth2
                 .successHandler(oAuth2AuthenticationSuccessHandler)
             )
-
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(authenticationJwtTokenFilter(),
                 UsernamePasswordAuthenticationFilter.class);
@@ -104,11 +98,14 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // ✅ ALL allowed origins — add every domain that needs access
-        configuration.setAllowedOrigins(List.of(
-            "http://localhost:3000",                          // local dev
-            "https://busy-brains-mart.vercel.app",           // Vercel frontend
-            "https://busybrainsmart-1.onrender.com"          // Render backend itself
+        // ✅ Use allowedOriginPatterns to cover ALL Vercel preview URLs
+        // Vercel creates a new subdomain for every deployment (busy-brains-mart-xxxx.vercel.app)
+        // Using patterns avoids having to update this list every time Vercel generates a new URL
+        configuration.setAllowedOriginPatterns(List.of(
+            "http://localhost:3000",                   // local dev
+            "https://busy-brains-mart.vercel.app",     // Vercel production domain
+            "https://busy-brains-mart-*.vercel.app",   // ALL Vercel preview deployments
+            "https://busybrainsmart-1.onrender.com"    // Render backend itself
         ));
 
         configuration.setAllowedMethods(Arrays.asList(
